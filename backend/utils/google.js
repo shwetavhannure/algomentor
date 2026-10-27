@@ -15,19 +15,31 @@ export async function verifyGoogleCredential(credential) {
   }
 
   const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-  let ticket;
+  let payload;
   try {
-    ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    if (credential.startsWith('ya29.')) {
+      // access token from the custom "Continue with Google" button
+      const info = await client.getTokenInfo(credential);
+      if (info.aud !== process.env.GOOGLE_CLIENT_ID) throw new Error('wrong audience');
+      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${credential}` },
+      });
+      if (!res.ok) throw new Error('userinfo failed');
+      payload = await res.json();
+    } else {
+      // id token (kept so older logins still work)
+      const ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    }
   } catch {
     const err = new Error('Invalid Google sign-in token.');
     err.statusCode = 401;
     throw err;
   }
 
-  const payload = ticket.getPayload();
   if (!payload?.email_verified) {
     const err = new Error('Google account email is not verified.');
     err.statusCode = 401;

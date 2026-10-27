@@ -1,11 +1,11 @@
-import { GoogleLogin } from '@react-oauth/google';
+import { useGoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage, isGoogleConfigured } from '../utils/errors';
 
 const btnCls =
-  'flex h-10 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
+  'flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700';
 
 function GoogleLogo() {
   return (
@@ -22,44 +22,26 @@ export default function GoogleButton() {
   const { googleLogin } = useAuth();
   const navigate = useNavigate();
 
-  if (!isGoogleConfigured()) {
-    return (
-      <button type="button" disabled className={`${btnCls} cursor-not-allowed opacity-60`}>
-        <GoogleLogo /> Continue with Google
-      </button>
-    );
-  }
-
-  const onSuccess = async (response) => {
-    try {
-      await googleLogin(response.credential);
-      navigate('/dashboard');
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    }
-  };
-
-  // the Google button needs a pixel width, keep it inside small screens
-  const width = Math.min(340, window.innerWidth - 64);
+  const login = useGoogleLogin({
+    onSuccess: async (response) => {
+      try {
+        await googleLogin(response.access_token);
+        navigate('/dashboard');
+      } catch (err) {
+        toast.error(getErrorMessage(err));
+      }
+    },
+    onError: () => toast.error('Google sign-in failed.'),
+  });
 
   return (
-    <div className="flex justify-center">
-      <div className="group relative" style={{ width }}>
-        {/* what the user sees: always the same plain button */}
-        <div className={`${btnCls} group-hover:bg-slate-50 dark:group-hover:bg-slate-700`}>
-          <GoogleLogo /> Continue with Google
-        </div>
-
-        {/* Google's real button, invisible, on top so the click works */}
-        <div className="absolute inset-0 overflow-hidden rounded-xl opacity-0 [&_iframe]:!h-10">
-          <GoogleLogin
-            onSuccess={onSuccess}
-            onError={() => toast.error('Google sign-in failed.')}
-            width={String(width)}
-            text="continue_with"
-          />
-        </div>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={() => login()}
+      disabled={!isGoogleConfigured()}
+      className={btnCls}
+    >
+      <GoogleLogo /> Continue with Google
+    </button>
   );
 }
