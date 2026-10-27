@@ -13,6 +13,7 @@ import guestRoutes from './routes/guestRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const isDev = process.env.NODE_ENV !== 'production';
 
