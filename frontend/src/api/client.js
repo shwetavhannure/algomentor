@@ -9,7 +9,10 @@ function resolveBaseUrl() {
   if (!isLocalPage && /\/\/(localhost|127\.0\.0\.1)/.test(fromEnv)) {
     return fromEnv.replace(/\/\/(localhost|127\.0\.0\.1)/, `//${host}`);
   }
-  return fromEnv;
+  if (fromEnv.endsWith('/')) {
+    return fromEnv + 'api';
+  }
+  return fromEnv + '/api';
 }
 
 const api = axios.create({
