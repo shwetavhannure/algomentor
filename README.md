@@ -10,12 +10,7 @@ An interactive, AI-assisted Data Structures and Algorithms (DSA) practice platfo
 - **Dynamic Multi-Model AI Engine:** Powered by the Groq API for fast hint generation, code complexity analysis, and configurable fallback models for improved reliability.
 - **Interactive Workspace & Code Editor:** Provides an integrated coding workspace with dedicated actions for requesting hints, analyzing time and space complexity, and marking problems as solved.
 - **Progress Tracking & Analytics:** Tracks daily solving streaks, completed problems, and an **Independence Score** that measures how often users solve problems using Hint 2 or an earlier hint level.
-- **Hybrid Authentication:** Supports secure email/password authentication using JWT alongside Google OAuth 2.0 sign-in.
 - **Personalized Learning Experience:** Allows users to configure their preferred programming language and target difficulty for a more customized practice experience.
-- **Problem Management:** Organizes coding problems by difficulty and maintains user-specific solving progress.
-- **Hint Reset Functionality:** Enables users to clear their code and reset hint progression to practice a problem again from scratch.
-- **Persistent User Progress:** Stores authentication details, problem-solving history, and learning metrics in MongoDB.
-- **Responsive Dashboard:** Presents learning progress and performance indicators in an organized interface for monitoring consistency and improvement.
 
 ---
 
@@ -263,25 +258,9 @@ The primary workspace actions are:
 
 For example, if a user solves 8 problems and 6 of those were completed using Hint 2 or lower, the Independence Score is 75%.
 
-\[
-\text{Independence Score} =
-\frac{\text{Eligible Solved Problems}}{\text{Total Solved Problems}}
-\times 100
-\]
-
 *The exact metric depends on how the backend records hint usage and solved attempts.*
 
-### 4. Profile Customization
 
-Users can configure their preferred programming language and target problem difficulty. These preferences can be used as default settings when opening new problems.
-
-### 5. Authentication & User Data
-
-- Email/password login with JWT-based authentication.
-- Google OAuth 2.0 sign-in, when configured.
-- Protected backend routes for authenticated operations.
-- Persistent user-specific progress and preferences.
-- Server-side validation of requests and authentication tokens.
 
 ---
 
