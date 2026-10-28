@@ -263,7 +263,3 @@ For example, if a user solves 8 problems and 6 of those were completed using Hin
 
 
 ---
-
-
-
-Add a `LICENSE` file to specify how others may use, modify, and distribute the project. If no license has been selected, the project remains subject to the default applicable copyright rules.
