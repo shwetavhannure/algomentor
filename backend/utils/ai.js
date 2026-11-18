@@ -31,8 +31,7 @@ const PROVIDERS = {
 
 // Edit this list (or use EXTRA_MODELS in .env) when providers retire models.
 const BASE_CATALOG = [
-  { provider: 'groq', id: 'llama-3.1-8b-instant' },
-  { provider: 'groq', id: 'openai/gpt-oss-20b' },
+  { provider: 'groq', id: 'openai/gpt-oss-120b' },
 ];
 
 const MAX_OUTPUT_TOKENS = 3000; // room for a full hint (and gpt-oss reasoning tokens)

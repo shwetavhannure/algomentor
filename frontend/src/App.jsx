@@ -9,6 +9,14 @@ import Dashboard from './pages/Dashboard';
 import Problems from './pages/Problems';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
+import { useAuth } from './context/AuthContext';
+import { lastWorkspaceStorageKey } from './utils/workspace';
+
+function WorkspaceEntry() {
+  const { user } = useAuth();
+  const lastProblemId = localStorage.getItem(lastWorkspaceStorageKey(user));
+  return <Navigate to={lastProblemId ? `/workspace/${lastProblemId}` : '/problems'} replace />;
+}
 
 function page(element) {
   return (
@@ -38,7 +46,8 @@ export default function App() {
       <Route path="/problems" element={page(<Problems />)} />
       <Route path="/revision" element={<Navigate to="/dashboard" replace />} />
       <Route path="/profile" element={page(<Profile />)} />
-      <Route path="/workspace/:id?" element={workspacePage()} />
+      <Route path="/workspace" element={page(<WorkspaceEntry />)} />
+      <Route path="/workspace/:id" element={workspacePage()} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

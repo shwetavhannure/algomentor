@@ -6,16 +6,16 @@ import {
 } from 'recharts';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errors';
 import ErrorState from '../components/ErrorState';
 import { StatCardSkeleton, Skeleton } from '../components/Skeleton';
 import { btnPrimary, cardCls } from '../utils/ui';
-
-const tickStyle = { fill: '#94a3b8', fontSize: 12 };
-const tooltipStyle = { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 };
+import { PRACTICE_LIBRARY } from '../data/practiceLibrary';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
@@ -32,7 +32,18 @@ export default function Dashboard() {
     load();
   }, [load]);
 
-  const firstName = user?.name?.split(' ')[0] || 'there';
+  const displayName = user?.name?.trim() || 'there';
+  const dark = theme === 'dark';
+  const tickStyle = { fill: dark ? '#cbd5e1' : '#475569', fontSize: 12 };
+  const axisColor = dark ? '#64748b' : '#94a3b8';
+  const gridColor = dark ? '#334155' : '#e2e8f0';
+  const tooltipStyle = {
+    borderRadius: 12,
+    border: `1px solid ${dark ? '#475569' : '#cbd5e1'}`,
+    backgroundColor: dark ? '#0f172a' : '#ffffff',
+    color: dark ? '#e2e8f0' : '#0f172a',
+    fontSize: 12,
+  };
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;
@@ -52,7 +63,7 @@ export default function Dashboard() {
 
   const { totals, perTopic, weakTopics, solvedPerDay } = stats;
   const cards = [
-    { label: 'Total problems', value: totals.problems, icon: ListChecks, color: 'text-indigo-500' },
+    { label: 'Total problems', value: PRACTICE_LIBRARY.length, icon: ListChecks, color: 'text-indigo-500' },
     { label: 'Solved', value: totals.solved, icon: CheckCircle2, color: 'text-teal-600' },
     {
       label: 'Current streak',
@@ -74,8 +85,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Hi, {firstName}</h1>
-        <Link to="/workspace" className={btnPrimary}><Plus className="h-4 w-4" /> New problem</Link>
+        <h1 className="text-2xl font-bold">Hi, {displayName}</h1>
+        <Link to="/problems" className={btnPrimary}><Plus className="h-4 w-4" /> Practice a problem</Link>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -92,8 +103,8 @@ export default function Dashboard() {
         <div className={`${cardCls} py-10 text-center`}>
           <Target className="mx-auto h-10 w-10 text-indigo-500" />
           <p className="mt-3 font-semibold">No problems yet</p>
-          <p className="mt-1 text-sm text-slate-500">Add your first problem to see charts here.</p>
-          <Link to="/workspace" className={`${btnPrimary} mt-4`}>Add a problem</Link>
+          <p className="mt-1 text-sm text-slate-500">Choose a curated problem and start practicing to build your progress.</p>
+          <Link to="/problems" className={`${btnPrimary} mt-4`}>Browse practice problems</Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -101,9 +112,10 @@ export default function Dashboard() {
             <h2 className="mb-3 text-sm font-semibold">Topic breakdown</h2>
             <ResponsiveContainer width="100%" height={Math.max(220, perTopic.length * 40)}>
               <BarChart data={perTopic} layout="vertical" margin={{ left: 0, right: 12 }}>
-                <XAxis type="number" allowDecimals={false} tick={tickStyle} />
-                <YAxis type="category" dataKey="topic" width={100} tick={tickStyle} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={tickStyle} axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                <YAxis type="category" dataKey="topic" width={100} tick={tickStyle} axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: dark ? '#1e293b' : '#f1f5f9' }} />
                 <Bar dataKey="count" name="Problems" fill="#0d9488" radius={[0, 6, 6, 0]} />
                 <Bar dataKey="solvedCount" name="Solved" fill="#0284c7" radius={[0, 6, 6, 0]} />
               </BarChart>
@@ -114,11 +126,11 @@ export default function Dashboard() {
             <h2 className="mb-3 text-sm font-semibold">Solved in the last 14 days</h2>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={activity} margin={{ left: -20, right: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.4} />
-                <XAxis dataKey="label" tick={tickStyle} interval="preserveStartEnd" />
-                <YAxis allowDecimals={false} tick={tickStyle} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="count" name="Solved" stroke="#0d9488" fill="#0d9488" fillOpacity={0.25} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                <XAxis dataKey="label" tick={tickStyle} interval="preserveStartEnd" axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                <YAxis allowDecimals={false} tick={tickStyle} axisLine={{ stroke: axisColor }} tickLine={{ stroke: axisColor }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: dark ? '#64748b' : '#94a3b8', strokeDasharray: '4 4' }} />
+                <Area type="monotone" dataKey="count" name="Solved" stroke="#0d9488" strokeWidth={3} dot={{ r: 3, fill: '#0d9488', stroke: dark ? '#0f172a' : '#ffffff', strokeWidth: 2 }} activeDot={{ r: 5 }} fill="#0d9488" fillOpacity={dark ? 0.24 : 0.14} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

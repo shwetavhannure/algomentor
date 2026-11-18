@@ -36,7 +36,7 @@ export default function TopNav() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle variant="plain" />
           <button
             type="button"
             onClick={logout}

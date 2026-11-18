@@ -26,6 +26,7 @@ const complexitySchema = new mongoose.Schema(
 const problemSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, trim: true },
+  catalogId: { type: String, default: null },
   statement: { type: String, required: true },
   topic: { type: String, enum: [...TOPICS, null], default: null },
   difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard', null], default: null },
@@ -41,6 +42,11 @@ const problemSchema = new mongoose.Schema({
   solvedAt: { type: Date },
   createdAt: { type: Date, default: Date.now },
 });
+
+problemSchema.index(
+  { user: 1, catalogId: 1 },
+  { unique: true, partialFilterExpression: { catalogId: { $type: 'string' } } }
+);
 
 export { TOPICS };
 export default mongoose.model('Problem', problemSchema);

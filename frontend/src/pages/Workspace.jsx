@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import {
-  Save, RotateCcw, Settings, ChevronDown, Lightbulb, Gauge, CheckCircle2, Trash2, Loader2, ClipboardPaste,
+  RotateCcw, Settings, Lightbulb, Gauge, CheckCircle2, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -11,7 +11,7 @@ import { useModels } from '../context/ModelContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { getErrorMessage } from '../utils/errors';
 import { isSolvedStatus } from '../utils/format';
-import { TOPICS, DIFFICULTIES, LANGUAGES, HINT_STEPS, DEFAULT_EDITOR_SETTINGS } from '../constants/topics';
+import { LANGUAGES, HINT_STEPS, DEFAULT_EDITOR_SETTINGS } from '../constants/topics';
 import CodeEditor from '../components/CodeEditor';
 import HintLadder from '../components/HintLadder';
 import ComplexityCard from '../components/ComplexityCard';
@@ -19,7 +19,8 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import ModelSelect from '../components/ModelSelect';
 import EditorSettingsForm from '../components/EditorSettingsForm';
 import { Skeleton } from '../components/Skeleton';
-import { inputCls, textareaCls, btnPrimary, btnGhost, cardCls } from '../utils/ui';
+import { inputCls, btnPrimary, btnGhost, cardCls } from '../utils/ui';
+import { lastWorkspaceStorageKey } from '../utils/workspace';
 
 // New problems start with the language saved on the profile page.
 const blankForm = (user) => ({
@@ -48,19 +49,22 @@ export default function Workspace() {
   const isPhone = !useMediaQuery('(min-width: 768px)');
 
   const justCreated = useRef(null); // id of a problem we just created here
+  const editVersion = useRef(0);
   const [form, setForm] = useState(() => blankForm(user));
   const [meta, setMeta] = useState(null); // saved problem from the server
   const [hints, setHints] = useState([]);
   const [loading, setLoading] = useState(Boolean(id));
   const [loadError, setLoadError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(''); // saving | hint | analyze | solve
+  const [busy, setBusy] = useState(''); // hint | analyze | solve | reset
   const [tab, setTab] = useState('problem');
-  const [showDetails, setShowDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmFull, setConfirmFull] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    if (id) localStorage.setItem(lastWorkspaceStorageKey(user), id);
+  }, [id, user]);
 
   const settings = { ...DEFAULT_EDITOR_SETTINGS, ...(user?.editorSettings || {}) };
   const highest = meta?.highestHintLevel || 0;
@@ -109,6 +113,7 @@ export default function Workspace() {
   }, [dirty]);
 
   const setField = (key, value) => {
+    editVersion.current += 1;
     setForm((f) => ({ ...f, [key]: value }));
     setDirty(true);
   };
@@ -125,18 +130,19 @@ export default function Workspace() {
       topic: form.topic || null,
       difficulty: form.difficulty || null,
     };
+    const version = editVersion.current;
     try {
       if (!id) {
         const { data } = await api.post('/problems', payload);
         setMeta(data.problem);
-        setDirty(false);
+        if (editVersion.current === version) setDirty(false);
         justCreated.current = data.problem._id;
         navigate(`/workspace/${data.problem._id}`, { replace: true });
         return data.problem._id;
       }
       const { data } = await api.put(`/problems/${id}`, payload);
       setMeta(data.problem);
-      setDirty(false);
+      if (editVersion.current === version) setDirty(false);
       return id;
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -144,27 +150,25 @@ export default function Workspace() {
     }
   }, [form, id, navigate]);
 
-  const handleSave = async () => {
-    setBusy('saving');
-    const savedId = await save();
-    if (savedId) toast.success('Saved');
-    setBusy('');
-  };
-
-  // Ctrl/Cmd + S on laptops
-  const saveRef = useRef(handleSave);
-  saveRef.current = handleSave;
+  // Persist edits shortly after typing so the workspace needs no manual Save action.
   useEffect(() => {
-    if (!isLaptop) return;
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveRef.current();
+    if (!id || !dirty || loading || busy) return undefined;
+    const timer = window.setTimeout(async () => {
+      const version = editVersion.current;
+      try {
+        const { data } = await api.put(`/problems/${id}`, {
+          ...form,
+          topic: form.topic || null,
+          difficulty: form.difficulty || null,
+        });
+        setMeta(data.problem);
+        if (editVersion.current === version) setDirty(false);
+      } catch (err) {
+        toast.error(getErrorMessage(err));
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isLaptop]);
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [id, form, dirty, loading, busy]);
 
   const runHint = async (level, confirm) => {
     setBusy('hint');
@@ -237,22 +241,6 @@ export default function Workspace() {
     setBusy('');
   };
 
-  const handleDelete = async () => {
-    setConfirmDelete(false);
-    if (!id) {
-      navigate('/problems');
-      return;
-    }
-    try {
-      await api.delete(`/problems/${id}`);
-      setDirty(false);
-      toast.success('Problem deleted');
-      navigate('/problems');
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-    }
-  };
-
   const changeSettings = async (partial) => {
     const next = { ...settings, ...partial };
     updateUserLocal({ editorSettings: next });
@@ -287,83 +275,57 @@ export default function Workspace() {
   // so title bar, dropdowns, panels and action bar share the same left and right edges.
   const topBar = (
     <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-3 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-600 dark:text-slate-300">
-            {form.title || (form.statement.trim() ? titleFromStatement(form.statement) : 'New practice session')}
-          </p>
-          <button type="button" onClick={handleSave} disabled={busy === 'saving'} className={`${btnPrimary} relative`}>
-            {busy === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            <span className="hidden sm:inline">Save</span>
-            {dirty && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-amber-500 dark:border-slate-950" title="Unsaved changes" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className={`${btnGhost} w-11 px-0 text-red-600 dark:text-red-400`}
-            aria-label="Delete problem"
-            title="Delete problem"
-          >
-            <Trash2 className="h-5 w-5" />
-          </button>
-          <div className="relative">
-            <button type="button" onClick={() => setShowSettings(!showSettings)} className={`${btnGhost} w-11 px-0`} aria-label="Editor settings">
-              <Settings className="h-5 w-5" />
-            </button>
-            {showSettings && (
-              <>
-                <button type="button" className="fixed inset-0 z-40 cursor-default" aria-label="Close settings" onClick={() => setShowSettings(false)} />
-                <div className="absolute right-0 top-12 z-50 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
-                  <h3 className="mb-3 text-sm font-semibold">Editor settings</h3>
-                  <EditorSettingsForm settings={settings} onChange={changeSettings} />
-                </div>
-              </>
-            )}
+      <div className="mx-auto max-w-7xl px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-3 sm:justify-start">
+            <label className="sr-only" htmlFor="workspace-language">Code language</label>
+            <select id="workspace-language" className={`${inputCls} min-w-0 flex-1 !border-slate-300 !bg-slate-100 !text-slate-800 hover:!bg-slate-200 dark:!border-slate-600 dark:!bg-slate-800 dark:!text-slate-100 dark:hover:!bg-slate-700 sm:w-40 sm:flex-none`} value={form.language} onChange={(e) => setField('language', e.target.value)} aria-label="Code language">
+              {LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+            </select>
+            <div className="min-w-0 flex-1 sm:max-w-[220px]">
+              <ModelSelect fill className="!border-slate-300 !bg-slate-100 !text-slate-800 hover:!bg-slate-200 dark:!border-slate-600 dark:!bg-slate-800 dark:!text-slate-100 dark:hover:!bg-slate-700" />
+            </div>
           </div>
-          <button type="button" onClick={() => setShowDetails(!showDetails)} className={btnGhost} aria-expanded={showDetails}>
-            Optional details <ChevronDown className={`h-4 w-4 transition ${showDetails ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <select className={inputCls} value={form.language} onChange={(e) => setField('language', e.target.value)} aria-label="Code language">
-            {LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-          </select>
-          <ModelSelect fill />
-        </div>
-        {showDetails && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <select className={inputCls} value={form.topic} onChange={(e) => setField('topic', e.target.value)} aria-label="Optional topic">
-            <option value="">Topic (optional)</option>
-            {TOPICS.map((t) => <option key={t}>{t}</option>)}
-          </select>
-          <select className={inputCls} value={form.difficulty} onChange={(e) => setField('difficulty', e.target.value)} aria-label="Optional difficulty">
-            <option value="">Difficulty (optional)</option>
-            {DIFFICULTIES.map((d) => <option key={d}>{d}</option>)}
-          </select>
+          <div className="flex flex-1 items-center justify-center gap-3 sm:flex-none sm:justify-end">
+            <span className="text-xs text-slate-500 dark:text-slate-400" role="status" aria-live="polite">
+              {dirty ? 'Saving changes...' : 'All changes saved'}
+            </span>
+            <div className="relative">
+              <button type="button" onClick={() => setShowSettings(!showSettings)} className={`${btnGhost} !border-slate-300 !bg-slate-100 !text-slate-800 hover:!bg-slate-200 dark:!border-slate-600 dark:!bg-slate-800 dark:!text-slate-100 dark:hover:!bg-slate-700 px-3`} aria-label="Editor settings">
+                <Settings className="h-4 w-4" /> Settings
+              </button>
+              {showSettings && (
+                <>
+                  <button type="button" className="fixed inset-0 z-40 cursor-default" aria-label="Close settings" onClick={() => setShowSettings(false)} />
+                  <div className="absolute right-0 top-12 z-50 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-600 dark:bg-slate-900">
+                    <h3 className="mb-3 text-sm font-semibold">Editor settings</h3>
+                    <EditorSettingsForm settings={settings} onChange={changeSettings} />
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 
   const statementBox = (
-    <div className={cardCls}>
-      <div className="mb-3 flex items-start gap-3">
-        <ClipboardPaste className="mt-0.5 h-5 w-5 shrink-0 text-teal-500" />
+    <section className={cardCls}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <label className="block text-sm font-semibold">Paste a problem to begin</label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No title needed. We’ll name it from the first line.</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-teal-600 dark:text-teal-400">Practice problem</p>
+          <h1 className="mt-1 text-xl font-bold">{form.title}</h1>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {form.topic && <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{form.topic}</span>}
+          {form.difficulty && <span className={`rounded-full px-2.5 py-1 font-medium ${form.difficulty === 'Easy' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : form.difficulty === 'Medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'}`}>{form.difficulty}</span>}
         </div>
       </div>
-      <textarea
-        className={textareaCls}
-        rows={isLaptop ? 6 : 8}
-        value={form.statement}
-        onChange={(e) => setField('statement', e.target.value)}
-        placeholder="Paste the full problem statement here..."
-      />
-    </div>
+      <div className="max-h-[34rem] overflow-y-auto whitespace-pre-wrap border-t border-slate-200 pt-4 text-sm leading-6 dark:border-slate-700">
+        {form.statement}
+      </div>
+    </section>
   );
 
   const editorBox = (
@@ -442,15 +404,6 @@ export default function Workspace() {
         confirmLabel="Reset"
         onCancel={() => setConfirmReset(false)}
         onConfirm={handleReset}
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        danger
-        title="Delete this problem?"
-        message="The problem and all its hints will be deleted. This cannot be undone."
-        confirmLabel="Delete"
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={handleDelete}
       />
     </>
   );

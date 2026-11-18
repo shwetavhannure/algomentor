@@ -9,27 +9,46 @@ function ownedProblem(userId, problemId) {
 
 export async function createProblem(req, res, next) {
   try {
-    const { title, statement, topic, difficulty, language, userCode } = req.body;
+    const { title, statement, topic, difficulty, language, userCode, catalogId } = req.body;
     if (!statement?.trim()) return res.status(400).json({ error: 'Statement is required.' });
     if (topic && !TOPICS.includes(topic)) return res.status(400).json({ error: 'Invalid topic.' });
     if (difficulty && !['Easy', 'Medium', 'Hard'].includes(difficulty)) {
       return res.status(400).json({ error: 'Invalid difficulty.' });
     }
     if (!language?.trim()) return res.status(400).json({ error: 'Language is required.' });
+    if (catalogId && (typeof catalogId !== 'string' || catalogId.length > 160)) {
+      return res.status(400).json({ error: 'Invalid practice problem.' });
+    }
+
+    // Each curated prompt maps to one personal progress record per user.
+    if (catalogId) {
+      const existing = await Problem.findOne({ user: req.user._id, catalogId });
+      if (existing) return res.json({ problem: existing, alreadyStarted: true });
+    }
 
     const firstLine = statement.split('\n').map((line) => line.trim()).find(Boolean) || '';
     const generatedTitle = firstLine.replace(/^\s*(problem\s*:\s*)/i, '').replace(/^#+\s*/, '').trim();
     const safeTitle = title?.trim() || (generatedTitle.length > 80 ? `${generatedTitle.slice(0, 77).trimEnd()}...` : generatedTitle) || 'Untitled problem';
 
-    const problem = await Problem.create({
-      user: req.user._id,
-      title: safeTitle,
-      statement,
-      topic: topic || null,
-      difficulty: difficulty || null,
-      language: language.trim(),
-      userCode: userCode || '',
-    });
+    let problem;
+    try {
+      problem = await Problem.create({
+        user: req.user._id,
+        title: safeTitle,
+        catalogId: catalogId || null,
+        statement,
+        topic: topic || null,
+        difficulty: difficulty || null,
+        language: language.trim(),
+        userCode: userCode || '',
+      });
+    } catch (e) {
+      if (e.code === 11000 && catalogId) {
+        const existing = await Problem.findOne({ user: req.user._id, catalogId });
+        if (existing) return res.json({ problem: existing, alreadyStarted: true });
+      }
+      throw e;
+    }
     res.status(201).json({ problem });
   } catch (e) {
     next(e);

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LogOut, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getErrorMessage } from '../utils/errors';
-import { DEFAULT_EDITOR_SETTINGS } from '../constants/topics';
+import { DEFAULT_EDITOR_SETTINGS, LANGUAGES } from '../constants/topics';
 import EditorSettingsForm from '../components/EditorSettingsForm';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ThemeToggle from '../components/ThemeToggle';
@@ -18,9 +18,15 @@ export default function Profile() {
   const { user, updateUserLocal, logout, loggingOut } = useAuth();
   const { theme } = useTheme();
   const [name, setName] = useState(user.name);
+  const nameInputRef = useRef(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (editing) nameInputRef.current?.focus();
+    else setName(user.name);
+  }, [user.name, editing]);
 
   const settings = { ...DEFAULT_EDITOR_SETTINGS, ...(user.editorSettings || {}) };
 
@@ -62,6 +68,17 @@ export default function Profile() {
     }
   };
 
+  const changePreferredLanguage = async (preferredLanguage) => {
+    const previousLanguage = user.preferredLanguage;
+    updateUserLocal({ preferredLanguage });
+    try {
+      await api.put('/auth/preferences', { preferredLanguage });
+    } catch (err) {
+      updateUserLocal({ preferredLanguage: previousLanguage });
+      toast.error(getErrorMessage(err));
+    }
+  };
+
   const deleteAccount = async () => {
     setConfirmDelete(false);
     try {
@@ -75,64 +92,80 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-8">
-      <header>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight">Profile & preferences</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage your personal details and coding workspace.</p>
-      </header>
-
       <section className={`${cardCls} divide-y divide-slate-200 p-0 dark:divide-slate-800`}>
         <div className="p-5 sm:p-6">
           <div className="mb-5">
             <h2 className="text-base font-semibold">Account details</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your name and sign-in information.</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2">
-            <form onSubmit={saveName}>
-              <label htmlFor="profile-name" className="mb-2 block text-sm font-semibold">Name</label>
-              <div className="relative">
-                <input
-                  id="profile-name"
-                  className={`${inputCls} ${editing ? 'pr-24' : 'pr-12'} ${editing ? '' : 'bg-slate-50 dark:bg-slate-900/60'}`}
-                  value={name}
-                  readOnly={!editing}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Escape' && cancelEdit()}
-                  autoFocus={editing}
-                  maxLength={60}
-                />
-                <div className="absolute right-1 top-1 flex items-center gap-0.5">
+          <form onSubmit={saveName}>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label htmlFor="profile-name" className="mb-2 block text-sm font-semibold">Name</label>
+                <div className="relative">
+                  <input
+                    ref={nameInputRef}
+                    id="profile-name"
+                    className={`${inputCls} ${editing ? 'pr-12' : 'bg-slate-50 pr-12 dark:bg-slate-900/60'}`}
+                    value={name}
+                    readOnly={!editing}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Escape' && cancelEdit()}
+                    maxLength={60}
+                  />
                   {editing ? (
-                    <>
-                      <button type="submit" disabled={saving} className={`${iconBtn} text-teal-600 dark:text-teal-400`} aria-label="Save name">
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-5 w-5" />}
-                      </button>
-                      <button type="button" disabled={saving} onClick={cancelEdit} className={iconBtn} aria-label="Cancel editing">
-                        <X className="h-5 w-5" />
-                      </button>
-                    </>
+                    <button type="button" disabled={saving} onClick={cancelEdit} className={`${iconBtn} absolute right-1 top-1`} aria-label="Cancel editing">
+                      <X className="h-5 w-5" />
+                    </button>
                   ) : (
-                    <button type="button" onClick={startEdit} className={iconBtn} aria-label="Edit name">
+                    <button type="button" onClick={startEdit} className={`${iconBtn} absolute right-1 top-1`} aria-label="Edit name">
                       <Pencil className="h-4 w-4" />
                     </button>
                   )}
                 </div>
               </div>
-            </form>
 
-          <div>
-            <label htmlFor="profile-email" className="mb-2 block text-sm font-semibold">Email</label>
-            <input id="profile-email" className={`${inputCls} bg-slate-50 dark:bg-slate-900/60`} value={user.email} readOnly />
-            <p className="mt-2 text-xs text-slate-500">
-              {user.authProvider === 'google' ? 'Signed in with Google' : 'Signed in with email and password'}
-            </p>
-          </div>
-          </div>
+              <div>
+                <label htmlFor="profile-email" className="mb-2 block text-sm font-semibold">Email</label>
+                <input id="profile-email" className={`${inputCls} bg-slate-50 dark:bg-slate-900/60`} value={user.email} readOnly />
+                <p className="mt-2 text-xs text-slate-500">
+                  {user.authProvider === 'google' ? 'Signed in with Google' : 'Signed in with email and password'}
+                </p>
+              </div>
+            </div>
+            {editing && (
+              <div className="mt-4 flex justify-end">
+                <button type="submit" disabled={saving} className={`${btnGhost} !h-9 px-3`}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Save name
+                </button>
+              </div>
+            )}
+          </form>
         </div>
 
         <div className="p-5 sm:p-6">
           <h2 className="text-base font-semibold">Editor settings</h2>
           <p className="mb-5 mt-1 text-sm text-slate-500 dark:text-slate-400">Choose how code appears in your workspace.</p>
           <EditorSettingsForm settings={settings} onChange={changeSettings} wide />
+        </div>
+
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div>
+            <h2 className="text-base font-semibold">Practice default</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">New practice sessions will open in your preferred language.</p>
+          </div>
+          <label className="block w-full text-sm sm:max-w-xs">
+            <span className="mb-1 block font-medium">Coding language</span>
+            <select
+              className={inputCls}
+              value={user.preferredLanguage || 'javascript'}
+              onChange={(e) => changePreferredLanguage(e.target.value)}
+              aria-label="Preferred coding language"
+            >
+              {LANGUAGES.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}
+            </select>
+          </label>
         </div>
 
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -153,7 +186,7 @@ export default function Profile() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Log out of your account on this device.</p>
         </div>
         <div className="w-full sm:w-44 sm:shrink-0">
-          <button type="button" className={`${btnGhost} !h-10 w-full`} onClick={logout} disabled={loggingOut}>
+          <button type="button" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-4 text-sm font-medium text-slate-800 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" onClick={logout} disabled={loggingOut}>
             {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             {loggingOut ? 'Logging out...' : 'Log out'}
           </button>

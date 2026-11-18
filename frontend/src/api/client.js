@@ -6,13 +6,11 @@ function resolveBaseUrl() {
   const host = window.location.hostname;
   const isLocalPage = host === 'localhost' || host === '127.0.0.1';
   if (!fromEnv) return `${window.location.protocol}//${host}:5000/api`;
-  if (!isLocalPage && /\/\/(localhost|127\.0\.0\.1)/.test(fromEnv)) {
-    return fromEnv.replace(/\/\/(localhost|127\.0\.0\.1)/, `//${host}`);
-  }
-  if (fromEnv.endsWith('/')) {
-    return fromEnv + 'api';
-  }
-  return fromEnv + '/api';
+  const resolved = !isLocalPage && /\/\/(localhost|127\.0\.0\.1)/.test(fromEnv)
+    ? fromEnv.replace(/\/\/(localhost|127\.0\.0\.1)/, `//${host}`)
+    : fromEnv;
+  const normalized = resolved.replace(/\/+$/, '');
+  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 }
 
 const api = axios.create({

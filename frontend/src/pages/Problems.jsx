@@ -1,18 +1,22 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, SlidersHorizontal, FileQuestion, CheckCircle2, CircleDashed } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, SlidersHorizontal, FileQuestion, CheckCircle2, CircleDashed, Play, RotateCcw } from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../utils/errors';
 import { TOPICS, DIFFICULTIES } from '../constants/topics';
+import { PRACTICE_LIBRARY } from '../data/practiceLibrary';
 import { difficultyClass, isSolvedStatus } from '../utils/format';
 import HintDots from '../components/HintDots';
 import Sheet from '../components/Sheet';
 import ErrorState from '../components/ErrorState';
 import { CardGridSkeleton } from '../components/Skeleton';
 import { inputCls, btnPrimary, btnGhost, cardCls } from '../utils/ui';
+import { lastWorkspaceStorageKey } from '../utils/workspace';
 
 export default function Problems() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -20,10 +24,36 @@ export default function Problems() {
   const [problems, setProblems] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState('');
+  const [startingId, setStartingId] = useState('');
+  const hasRestoredView = useRef(false);
+  const skipNextViewSave = useRef(false);
 
   const topic = params.get('topic') || '';
   const status = params.get('status') || '';
   const difficulty = params.get('difficulty') || '';
+  const savedViewKey = `algomentor_problems_view:${user?.email || 'anonymous'}`;
+
+  // Keep the last selected topic and filters when navigating to another section.
+  useEffect(() => {
+    if (hasRestoredView.current) return;
+    hasRestoredView.current = true;
+    if (params.toString()) return;
+
+    const savedView = sessionStorage.getItem(savedViewKey);
+    if (savedView) {
+      skipNextViewSave.current = true;
+      setParams(new URLSearchParams(savedView), { replace: true });
+    }
+  }, [params, savedViewKey, setParams]);
+
+  useEffect(() => {
+    if (!hasRestoredView.current) return;
+    if (skipNextViewSave.current) {
+      skipNextViewSave.current = false;
+      return;
+    }
+    sessionStorage.setItem(savedViewKey, params.toString());
+  }, [params, savedViewKey]);
 
   const setFilter = (key, value) => {
     const next = new URLSearchParams(params);
@@ -43,13 +73,48 @@ export default function Problems() {
     setProblems(null);
     setError('');
     api
-      .get('/problems', { params: { topic, status, difficulty, search: debounced } })
+      .get('/problems', { params: { topic, difficulty } })
       .then(({ data }) => !cancelled && setProblems(data.problems))
       .catch((err) => !cancelled && setError(getErrorMessage(err)));
     return () => { cancelled = true; };
-  }, [topic, status, difficulty, debounced, reloadKey]);
+  }, [topic, difficulty, reloadKey]);
 
   const filterCount = [topic, status, difficulty].filter(Boolean).length;
+  const savedByCatalog = new Map((problems || []).filter((p) => p.catalogId).map((p) => [p.catalogId, p]));
+  const visibleLibrary = PRACTICE_LIBRARY.filter((item) => {
+    if (topic && item.topic !== topic) return false;
+    if (difficulty && item.difficulty !== difficulty) return false;
+    if (debounced && !item.title.toLowerCase().includes(debounced.toLowerCase())) return false;
+    const saved = savedByCatalog.get(item.id);
+    const solved = saved && isSolvedStatus(saved.status);
+    if (status === 'not-started' && saved) return false;
+    if (status === 'attempting' && (!saved || solved)) return false;
+    if (status === 'solved' && !solved) return false;
+    return true;
+  });
+
+  const startPractice = async (item) => {
+    const saved = savedByCatalog.get(item.id);
+    if (saved) {
+      localStorage.setItem(lastWorkspaceStorageKey(user), saved._id);
+      navigate(`/workspace/${saved._id}`);
+      return;
+    }
+    setStartingId(item.id);
+    try {
+      const { data } = await api.post('/problems', {
+        ...item,
+        catalogId: item.id,
+        language: user?.preferredLanguage || 'javascript',
+        userCode: '',
+      });
+      localStorage.setItem(lastWorkspaceStorageKey(user), data.problem._id);
+      navigate(`/workspace/${data.problem._id}`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setStartingId('');
+    }
+  };
 
   const filterFields = (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -59,7 +124,8 @@ export default function Problems() {
       </select>
       <select className={inputCls} value={status} onChange={(e) => setFilter('status', e.target.value)} aria-label="Status">
         <option value="">Any status</option>
-        <option value="attempting">Attempting</option>
+        <option value="not-started">Not started</option>
+        <option value="attempting">In progress</option>
         <option value="solved">Solved</option>
       </select>
       <select className={inputCls} value={difficulty} onChange={(e) => setFilter('difficulty', e.target.value)} aria-label="Difficulty">
@@ -71,15 +137,10 @@ export default function Problems() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Problems</h1>
-        <Link to="/workspace" className={btnPrimary}><Plus className="h-4 w-4" /> New problem</Link>
-      </div>
-
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-          <input className={`${inputCls} pl-9`} placeholder="Search by title" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={`${inputCls} pl-9`} placeholder="Find a practice problem" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <button type="button" className={`${btnGhost} md:hidden`} onClick={() => setShowFilters(true)}>
           <SlidersHorizontal className="h-4 w-4" /> Filters{filterCount > 0 && ` (${filterCount})`}
@@ -94,44 +155,59 @@ export default function Problems() {
         </div>
       </Sheet>
 
-      {error && <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />}
+      {error && <ErrorState message={error} onRetry={() => { setError(''); setReloadKey((k) => k + 1); }} />}
 
-      {!error && problems === null && <CardGridSkeleton />}
-
-      {problems && problems.length === 0 && (
-        <div className={`${cardCls} py-12 text-center`}>
-          <FileQuestion className="mx-auto h-10 w-10 text-indigo-500" />
-          <p className="mt-3 font-semibold">{filterCount || debounced ? 'No problems match your filters' : 'No problems yet'}</p>
-          <p className="mt-1 text-sm text-slate-500">Add a problem and start practicing.</p>
-          <Link to="/workspace" className={`${btnPrimary} mt-4`}>New problem</Link>
-        </div>
-      )}
-
-      {problems && problems.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {problems.map((p) => (
-            <button
-              key={p._id}
-              type="button"
-              onClick={() => navigate(`/workspace/${p._id}`)}
-              className={`${cardCls} text-left transition hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-700`}
-            >
-              <h3 className="line-clamp-2 font-semibold">{p.title}</h3>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                {p.topic && <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{p.topic}</span>}
-                {p.difficulty && <span className={`rounded-full px-2 py-1 font-medium ${difficultyClass(p.difficulty)}`}>{p.difficulty}</span>}
+      {status && problems === null ? <CardGridSkeleton /> : (
+        <>
+          {!topic && !debounced && !status && !difficulty ? (
+            <div>
+              <div className="mb-3">
+                <h2 className="text-lg font-semibold">Choose a topic</h2>
+                <p className="mt-1 text-sm text-slate-500">Each topic has a steady path from easy warm-ups to harder challenges.</p>
               </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                <span className="flex items-center gap-1">
-                  {isSolvedStatus(p.status)
-                    ? <><CheckCircle2 className="h-4 w-4 text-emerald-500" /> Solved</>
-                    : <><CircleDashed className="h-4 w-4 text-amber-500" /> Attempting</>}
-                </span>
-                <HintDots level={p.highestHintLevel} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {TOPICS.map((itemTopic) => (
+                  <button key={itemTopic} type="button" onClick={() => setFilter('topic', itemTopic)} className={`${cardCls} text-left transition hover:border-teal-300 hover:shadow-sm dark:hover:border-teal-700`}>
+                    <span className="font-semibold">{itemTopic}</span>
+                    <span className="mt-1 block text-sm text-slate-500">15 practice problems</span>
+                  </button>
+                ))}
               </div>
-            </button>
-          ))}
-        </div>
+            </div>
+          ) : visibleLibrary.length === 0 ? (
+            <div className={`${cardCls} py-10 text-center`}>
+              <FileQuestion className="mx-auto h-10 w-10 text-indigo-500" />
+              <p className="mt-3 font-semibold">No practice problems match these filters</p>
+              <p className="mt-1 text-sm text-slate-500">Try another topic or difficulty.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {visibleLibrary.map((item) => {
+                const saved = savedByCatalog.get(item.id);
+                const solved = saved && isSolvedStatus(saved.status);
+                return (
+                  <article key={item.id} className={`${cardCls} flex min-h-40 flex-col justify-between gap-4 transition hover:border-teal-300 dark:hover:border-teal-700`}>
+                    <div>
+                      <h2 className="font-semibold">{item.title}</h2>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{item.statement.split('\n\n')[1]}</p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{item.topic}</span>
+                        <span className={`rounded-full px-2 py-1 font-medium ${difficultyClass(item.difficulty)}`}>{item.difficulty}</span>
+                        {solved && <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Solved</span>}
+                        {saved && !solved && <span className="flex items-center gap-1 text-amber-600"><CircleDashed className="h-3.5 w-3.5" /> In progress</span>}
+                      </div>
+                      {saved && <div className="mt-3"><HintDots level={saved.highestHintLevel} /></div>}
+                    </div>
+                    <button type="button" onClick={() => startPractice(item)} disabled={Boolean(startingId)} className={`${saved ? btnGhost : btnPrimary} w-full`}>
+                      {startingId === item.id ? <RotateCcw className="h-4 w-4 animate-spin" /> : saved ? <RotateCcw className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      {saved ? 'Continue solving' : 'Start solving'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
