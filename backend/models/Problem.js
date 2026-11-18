@@ -27,8 +27,8 @@ const problemSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title: { type: String, required: true, trim: true },
   statement: { type: String, required: true },
-  topic: { type: String, enum: TOPICS, required: true },
-  difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], required: true },
+  topic: { type: String, enum: [...TOPICS, null], default: null },
+  difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard', null], default: null },
   language: { type: String, required: true },
   userCode: { type: String, default: '' },
   // attempting -> solved ('due' is only kept so older saved problems still load)

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import {
-  Save, RotateCcw, Settings, ChevronDown, Lightbulb, Gauge, CheckCircle2, Trash2, Loader2,
+  Save, RotateCcw, Settings, ChevronDown, Lightbulb, Gauge, CheckCircle2, Trash2, Loader2, ClipboardPaste,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -21,15 +21,22 @@ import EditorSettingsForm from '../components/EditorSettingsForm';
 import { Skeleton } from '../components/Skeleton';
 import { inputCls, textareaCls, btnPrimary, btnGhost, cardCls } from '../utils/ui';
 
-// new problems start with the language and difficulty saved on the profile page
+// New problems start with the language saved on the profile page.
 const blankForm = (user) => ({
   title: '',
   statement: '',
-  topic: 'Arrays',
-  difficulty: user?.targetDifficulty || 'Easy',
+  topic: '',
+  difficulty: '',
   language: user?.preferredLanguage || 'javascript',
   userCode: '',
 });
+
+function titleFromStatement(statement) {
+  const firstLine = statement.split('\n').map((line) => line.trim()).find(Boolean) || '';
+  const cleaned = firstLine.replace(/^\s*(problem\s*:\s*)/i, '').replace(/^#+\s*/, '').trim();
+  if (!cleaned) return 'Untitled problem';
+  return cleaned.length > 80 ? `${cleaned.slice(0, 77).trimEnd()}...` : cleaned;
+}
 
 export default function Workspace() {
   const { id } = useParams();
@@ -83,7 +90,7 @@ export default function Workspace() {
       .then(({ data }) => {
         if (cancelled) return;
         const p = data.problem;
-        setForm({ title: p.title, statement: p.statement, topic: p.topic, difficulty: p.difficulty, language: p.language, userCode: p.userCode || '' });
+        setForm({ title: p.title, statement: p.statement, topic: p.topic || '', difficulty: p.difficulty || '', language: p.language, userCode: p.userCode || '' });
         setMeta(p);
         setHints(data.hints);
         setDirty(false);
@@ -108,20 +115,26 @@ export default function Workspace() {
 
   // creates or updates, returns the problem id (or null on failure)
   const save = useCallback(async () => {
-    if (!form.title.trim() || !form.statement.trim()) {
-      toast.error('Add a title and the problem statement first.');
+    if (!form.statement.trim()) {
+      toast.error('Paste the problem statement to get started.');
       return null;
     }
+    const payload = {
+      ...form,
+      title: form.title.trim() || titleFromStatement(form.statement),
+      topic: form.topic || null,
+      difficulty: form.difficulty || null,
+    };
     try {
       if (!id) {
-        const { data } = await api.post('/problems', form);
+        const { data } = await api.post('/problems', payload);
         setMeta(data.problem);
         setDirty(false);
         justCreated.current = data.problem._id;
         navigate(`/workspace/${data.problem._id}`, { replace: true });
         return data.problem._id;
       }
-      const { data } = await api.put(`/problems/${id}`, form);
+      const { data } = await api.put(`/problems/${id}`, payload);
       setMeta(data.problem);
       setDirty(false);
       return id;
@@ -276,12 +289,9 @@ export default function Workspace() {
     <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div className="mx-auto max-w-7xl space-y-3 px-4 py-3">
         <div className="flex items-center gap-2">
-          <input
-            className={`${inputCls} min-w-0 flex-1 font-semibold`}
-            placeholder="Problem title"
-            value={form.title}
-            onChange={(e) => setField('title', e.target.value)}
-          />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-600 dark:text-slate-300">
+            {form.title || (form.statement.trim() ? titleFromStatement(form.statement) : 'New practice session')}
+          </p>
           <button type="button" onClick={handleSave} disabled={busy === 'saving'} className={`${btnPrimary} relative`}>
             {busy === 'saving' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             <span className="hidden sm:inline">Save</span>
@@ -310,37 +320,48 @@ export default function Workspace() {
               </>
             )}
           </div>
-          <button type="button" onClick={() => setShowDetails(!showDetails)} className={`${btnGhost} md:hidden`}>
-            Details <ChevronDown className={`h-4 w-4 transition ${showDetails ? 'rotate-180' : ''}`} />
+          <button type="button" onClick={() => setShowDetails(!showDetails)} className={btnGhost} aria-expanded={showDetails}>
+            Optional details <ChevronDown className={`h-4 w-4 transition ${showDetails ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
-        {/* four equal columns on md+, so the row spans exactly the same width as the title bar */}
-        <div className={`${showDetails ? 'grid' : 'hidden'} grid-cols-1 gap-3 sm:grid-cols-2 md:grid md:grid-cols-4`}>
-          <select className={inputCls} value={form.topic} onChange={(e) => setField('topic', e.target.value)} aria-label="Topic">
-            {TOPICS.map((t) => <option key={t}>{t}</option>)}
-          </select>
-          <select className={inputCls} value={form.difficulty} onChange={(e) => setField('difficulty', e.target.value)} aria-label="Difficulty">
-            {DIFFICULTIES.map((d) => <option key={d}>{d}</option>)}
-          </select>
-          <select className={inputCls} value={form.language} onChange={(e) => setField('language', e.target.value)} aria-label="Language">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <select className={inputCls} value={form.language} onChange={(e) => setField('language', e.target.value)} aria-label="Code language">
             {LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
           </select>
           <ModelSelect fill />
         </div>
+        {showDetails && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <select className={inputCls} value={form.topic} onChange={(e) => setField('topic', e.target.value)} aria-label="Optional topic">
+            <option value="">Topic (optional)</option>
+            {TOPICS.map((t) => <option key={t}>{t}</option>)}
+          </select>
+          <select className={inputCls} value={form.difficulty} onChange={(e) => setField('difficulty', e.target.value)} aria-label="Optional difficulty">
+            <option value="">Difficulty (optional)</option>
+            {DIFFICULTIES.map((d) => <option key={d}>{d}</option>)}
+          </select>
+          </div>
+        )}
       </div>
     </div>
   );
 
   const statementBox = (
     <div className={cardCls}>
-      <label className="mb-2 block text-sm font-medium">Problem statement</label>
+      <div className="mb-3 flex items-start gap-3">
+        <ClipboardPaste className="mt-0.5 h-5 w-5 shrink-0 text-teal-500" />
+        <div>
+          <label className="block text-sm font-semibold">Paste a problem to begin</label>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No title needed. We’ll name it from the first line.</p>
+        </div>
+      </div>
       <textarea
         className={textareaCls}
         rows={isLaptop ? 6 : 8}
         value={form.statement}
         onChange={(e) => setField('statement', e.target.value)}
-        placeholder="Paste the problem statement yourself"
+        placeholder="Paste the full problem statement here..."
       />
     </div>
   );
@@ -348,7 +369,10 @@ export default function Workspace() {
   const editorBox = (
     <div className={cardCls}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <label className="text-sm font-medium">Your code</label>
+        <div>
+          <label className="text-sm font-semibold">Your first attempt</label>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Pseudocode or an incomplete start is fine.</p>
+        </div>
         <button
           type="button"
           onClick={() => setConfirmReset(true)}
@@ -386,7 +410,10 @@ export default function Workspace() {
   // same card + label style as the left column so the two sides line up
   const mentorBox = (
     <div className={cardCls}>
-      <h2 className="mb-2 block text-sm font-medium">Mentor</h2>
+      <div className="mb-3">
+        <h2 className="block text-sm font-semibold">Your mentor</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Try it yourself first. If you get stuck, reveal one hint at a time. Check complexity and mark solved when you’re confident.</p>
+      </div>
       <div className="space-y-4">
         {actions}
         <HintLadder hints={hints} highest={highest} loadingLevel={busy === 'hint' ? nextLevel : 0} />

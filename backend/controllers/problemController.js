@@ -10,20 +10,23 @@ function ownedProblem(userId, problemId) {
 export async function createProblem(req, res, next) {
   try {
     const { title, statement, topic, difficulty, language, userCode } = req.body;
-    if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
     if (!statement?.trim()) return res.status(400).json({ error: 'Statement is required.' });
-    if (!TOPICS.includes(topic)) return res.status(400).json({ error: 'Invalid topic.' });
-    if (!['Easy', 'Medium', 'Hard'].includes(difficulty)) {
+    if (topic && !TOPICS.includes(topic)) return res.status(400).json({ error: 'Invalid topic.' });
+    if (difficulty && !['Easy', 'Medium', 'Hard'].includes(difficulty)) {
       return res.status(400).json({ error: 'Invalid difficulty.' });
     }
     if (!language?.trim()) return res.status(400).json({ error: 'Language is required.' });
 
+    const firstLine = statement.split('\n').map((line) => line.trim()).find(Boolean) || '';
+    const generatedTitle = firstLine.replace(/^\s*(problem\s*:\s*)/i, '').replace(/^#+\s*/, '').trim();
+    const safeTitle = title?.trim() || (generatedTitle.length > 80 ? `${generatedTitle.slice(0, 77).trimEnd()}...` : generatedTitle) || 'Untitled problem';
+
     const problem = await Problem.create({
       user: req.user._id,
-      title: title.trim(),
+      title: safeTitle,
       statement,
-      topic,
-      difficulty,
+      topic: topic || null,
+      difficulty: difficulty || null,
       language: language.trim(),
       userCode: userCode || '',
     });
@@ -81,13 +84,13 @@ export async function updateProblem(req, res, next) {
     ]; // status changes only through /solve and /review
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
-        if (key === 'topic' && !TOPICS.includes(req.body.topic)) {
+        if (key === 'topic' && req.body.topic && !TOPICS.includes(req.body.topic)) {
           return res.status(400).json({ error: 'Invalid topic.' });
         }
-        if (key === 'difficulty' && !['Easy', 'Medium', 'Hard'].includes(req.body.difficulty)) {
+        if (key === 'difficulty' && req.body.difficulty && !['Easy', 'Medium', 'Hard'].includes(req.body.difficulty)) {
           return res.status(400).json({ error: 'Invalid difficulty.' });
         }
-        problem[key] = req.body[key];
+        problem[key] = (key === 'topic' || key === 'difficulty') && !req.body[key] ? null : req.body[key];
       }
     }
     await problem.save();

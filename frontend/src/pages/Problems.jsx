@@ -118,8 +118,8 @@ export default function Problems() {
             >
               <h3 className="line-clamp-2 font-semibold">{p.title}</h3>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{p.topic}</span>
-                <span className={`rounded-full px-2 py-1 font-medium ${difficultyClass(p.difficulty)}`}>{p.difficulty}</span>
+                {p.topic && <span className="rounded-full bg-indigo-50 px-2 py-1 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{p.topic}</span>}
+                {p.difficulty && <span className={`rounded-full px-2 py-1 font-medium ${difficultyClass(p.difficulty)}`}>{p.difficulty}</span>}
               </div>
               <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                 <span className="flex items-center gap-1">
