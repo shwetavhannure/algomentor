@@ -76,7 +76,6 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-8">
       <header>
-        <p className="text-sm font-medium text-teal-600 dark:text-teal-400">Your account</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">Profile & preferences</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage your personal details and coding workspace.</p>
       </header>
@@ -150,14 +149,23 @@ export default function Profile() {
 
       <section className={`${cardCls} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
         <div>
-          <h2 className="text-sm font-semibold">Account actions</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Sign out on this device or permanently remove your account.</p>
+          <h2 className="text-sm font-semibold">Sign out</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Log out of your account on this device.</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0">
+        <div className="sm:shrink-0">
           <button type="button" className={`${btnGhost} !h-10 w-full sm:w-auto`} onClick={logout} disabled={loggingOut}>
             {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             {loggingOut ? 'Logging out...' : 'Log out'}
           </button>
+        </div>
+      </section>
+
+      <section className={`${cardCls} flex flex-col gap-4 border-red-200/80 sm:flex-row sm:items-center sm:justify-between dark:border-red-900/50`}>
+        <div>
+          <h2 className="text-sm font-semibold">Delete account</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Permanently delete your account and saved data.</p>
+        </div>
+        <div className="sm:shrink-0">
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
