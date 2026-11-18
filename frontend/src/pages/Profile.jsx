@@ -152,8 +152,8 @@ export default function Profile() {
           <h2 className="text-sm font-semibold">Sign out</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Log out of your account on this device.</p>
         </div>
-        <div className="sm:shrink-0">
-          <button type="button" className={`${btnGhost} !h-10 w-full sm:w-auto`} onClick={logout} disabled={loggingOut}>
+        <div className="w-full sm:w-44 sm:shrink-0">
+          <button type="button" className={`${btnGhost} !h-10 w-full`} onClick={logout} disabled={loggingOut}>
             {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             {loggingOut ? 'Logging out...' : 'Log out'}
           </button>
@@ -165,11 +165,11 @@ export default function Profile() {
           <h2 className="text-sm font-semibold">Delete account</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Permanently delete your account and saved data.</p>
         </div>
-        <div className="sm:shrink-0">
+        <div className="w-full sm:w-44 sm:shrink-0">
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70 sm:w-auto"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/70"
           >
             <Trash2 className="h-4 w-4" /> Delete account
           </button>
