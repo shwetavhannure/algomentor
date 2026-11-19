@@ -78,7 +78,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="border-t border-slate-200 bg-white py-12 dark:border-slate-700 dark:bg-slate-900 md:py-16">
+      <section className="bg-white py-12 dark:bg-slate-900 md:py-16">
         <div className="mx-auto max-w-6xl px-4">
         <h2 className="text-center text-2xl font-bold">How it works</h2>
         <p className="mt-2 text-center text-slate-600 dark:text-slate-300">Four hint levels. You unlock them in order.</p>
@@ -118,7 +118,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-white py-8 dark:border-slate-700 dark:bg-slate-900">
+      <footer className="bg-white py-8 dark:bg-slate-900">
         <p className="px-4 text-center text-sm text-slate-500">
           AlgoMentor &copy; 2026 &mdash; Master Data Structures &amp; Algorithms step-by-step.
         </p>
