@@ -85,7 +85,7 @@ export default function Auth() {
       <main className="flex min-h-dvh flex-col bg-slate-50 px-4 py-5 sm:px-8 dark:bg-slate-950">
         <div className="flex items-center justify-between">
           <div className="lg:invisible"><Logo /></div>
-          <ThemeToggle />
+          <ThemeToggle variant="plain" />
         </div>
 
         <div className="flex flex-1 items-center justify-center py-8">

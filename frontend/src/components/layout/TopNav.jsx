@@ -60,7 +60,7 @@ export function PublicTopNav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
         <Logo />
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle variant="plain" />
           <Link
             to={isAuthenticated ? '/dashboard' : '/auth'}
             className="inline-flex h-11 items-center rounded-xl gradient-primary px-4 text-sm font-medium text-white"
